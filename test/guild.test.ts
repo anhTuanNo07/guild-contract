@@ -16,31 +16,6 @@ describe("Guild basic function ", function () {
     // this.GuildMode = await ethers.getContractFactory("MechaGuild")
   })
   
-  // // initial Token
-  // beforeEach(async function() {
-    
-  //   // Deploy the guild contract
-  //   const GuildContract = await ethers.getContractFactory("MechGuild");
-  //   this.guild = await upgrades.deployProxy(GuildContract, {
-  //     initializer: '__MechaGuild_init'
-  //   });
-  //   this.guild.deployed();
-    
-  //   // set signer
-  //   await this.guild.connect(this.alice).setSigner(this.minter.address)
-    
-  //   // Sign for minter create guild
-  //   const signatureRes = await signGuildTicketClaim(this.guild, 300, 0, this.minter, this.minter)
-
-  //   // claim Tokens
-  //   await this.guild.connect(this.minter).claimGuildTicket(300, 0, signatureRes)
-
-  //   // create the first guild for minter
-  //   await this.guild.connect(this.minter).createGuild(
-  //     (await time.latest()).toNumber(),
-  //     this.minter.address
-  //   )
-  // })
     // initial Token
   beforeEach(async function() {    
     // Deploy the guild contract
@@ -69,7 +44,7 @@ describe("Guild basic function ", function () {
   
   it("check balance of minter", async function() {
     const minterGuildTicket = await this.guild.getGuildTicketCount(this.minter.address)
-    expect(minterGuildTicket).to.equal(200)
+    expect(minterGuildTicket.toNumber()).to.equal(200)
   })
 
   it("minter create a new guild", async function() {
@@ -115,8 +90,7 @@ describe("Guild basic function ", function () {
     await this.guild.connect(this.minter).addMemberToGuild(this.alice.address)
     await this.guild.connect(this.alice).outOfGuild()
     const aliceGuild = await this.guild.returnMemberGuild(this.alice.address)
-
-    expect(aliceGuild).to.equal(0)
+    expect(aliceGuild.toNumber()).to.equal(0)
   });
 
   it("request join private guild", async function() {
@@ -132,7 +106,7 @@ describe("Guild basic function ", function () {
     await this.guild.connect(this.minter).changePublicStatus(true)
     await this.guild.connect(this.bob).requestJoinGuild(1)
     const bobGuild = await this.guild.returnMemberGuild(this.bob.address)
-    expect(bobGuild).to.equal(1)
+    expect(bobGuild.toNumber()).to.equal(1)
   });
 
   it("create other guild while still be in certain guild", async function() {
