@@ -43,13 +43,13 @@ contract MechGuild is
     }
 
     // mapping
-    mapping(address => uint256) memberToGuild;
+    mapping(address => uint256) public memberToGuild;
 
-    mapping(address => uint256) lastTimeOutGuild;
+    mapping(address => uint256) public lastTimeOutGuild;
 
-    mapping(address => uint256) guildTicketCount;
+    mapping(address => uint256) public guildTicketCount;
 
-    mapping(address => uint256) claimGuildTicketWithSigNonces;
+    mapping(address => uint256) public claimGuildTicketWithSigNonces;
 
     mapping(address => mapping(uint256 => bool)) public guildTicketClaim;
 
