@@ -1,8 +1,10 @@
+import { MechGuild } from './../typechain-types/MechGuild';
 import { expect } from "chai"
 import { ethers, upgrades } from "hardhat"
 import { utils, BigNumber } from "ethers"
 import { time } from "@openzeppelin/test-helpers";
 import { signGuildTicketClaim } from './util'
+import { expectRevert } from "@openzeppelin/test-helpers"
 
 describe("Guild basic function ", function () {
   // assign address
@@ -23,7 +25,7 @@ describe("Guild basic function ", function () {
     this.guild = await upgrades.deployProxy(GuildContract, {
       initializer: '__MechaGuild_init'
     });
-    this.guild.deployed();
+    this.guild.deployed() as MechGuild;
     
     // set owner
     await this.guild.connect(this.alice).setSigner(this.minter.address)
@@ -36,14 +38,13 @@ describe("Guild basic function ", function () {
 
     // create the first guild for minter
     await this.guild.connect(this.minter).createGuild(
-      (await time.latest()).toNumber(),
-      this.minter.address
+      (await time.latest()).toNumber()
     )
   })
 
   
   it("check balance of minter", async function() {
-    const minterGuildTicket = await this.guild.getGuildTicketCount(this.minter.address)
+    const minterGuildTicket = await this.guild.guildTicketCount(this.minter.address)
     expect(minterGuildTicket.toNumber()).to.equal(200)
   })
 
@@ -52,21 +53,27 @@ describe("Guild basic function ", function () {
     expect(guild.guildMaster).to.equal(this.minter.address)
   });
 
+  it("not enough guild ticket to create new guild", async function() {
+    await expectRevert(
+      this.guild.connect(this.bob).createGuild(
+        (await time.latest()).toNumber()
+      ),
+      'not enough balance',
+    )
+  })
+
   it("change guild master to other address not in the guild", async function() {
-    try {
-      // change guild master to alice who is not inside the guild
-      await this.guild.connect(this.minter).changeGuildMaster(this.alice.address)
-    } catch (error: any) {
-      expect(error.message)
-        .to.equal(`VM Exception while processing transaction: reverted with reason string 'Must be the same guild'`)
-    }
+    await expectRevert(
+      this.guild.connect(this.minter).changeGuildMaster(this.alice.address),
+      'Must be the same guild',
+    )
   });
 
   it("change guild master to other address inside the guild", async function () {
     // add alice to the guild
     await this.guild.connect(this.minter).addMemberToGuild(this.alice.address)
-    const aliceGuild = await this.guild.returnMemberGuild(this.alice.address)
-    const minterGuild = await this.guild.returnMemberGuild(this.minter.address)
+    const aliceGuild = await this.guild.memberToGuild(this.alice.address)
+    const minterGuild = await this.guild.memberToGuild(this.minter.address)
 
     // change master guild
     await this.guild.connect(this.minter).changeGuildMaster(this.alice.address)
@@ -78,56 +85,70 @@ describe("Guild basic function ", function () {
   it("remove member and add again", async function() {
     await this.guild.connect(this.minter).addMemberToGuild(this.alice.address)
     await this.guild.connect(this.minter).kickMember(this.alice.address)
-    try {
-      await this.guild.connect(this.minter).addMemberToGuild(this.alice.address)
-    } catch(error: any) {
-      expect(error.message)
-        .to.equal(`VM Exception while processing transaction: reverted with reason string 'Have not ended penalty time'`)
-    }
+    await expectRevert(
+      this.guild.connect(this.minter).addMemberToGuild(this.alice.address),
+      'Have not ended penalty time',
+    )
   });
 
-  it("out of guild successfully", async function() {
+  it("normal member out of guild successfully", async function() {
     await this.guild.connect(this.minter).addMemberToGuild(this.alice.address)
     await this.guild.connect(this.alice).outOfGuild()
-    const aliceGuild = await this.guild.returnMemberGuild(this.alice.address)
+    const aliceGuild = await this.guild.memberToGuild(this.alice.address)
     expect(aliceGuild.toNumber()).to.equal(0)
   });
 
+  it("guild master out of guild without transfer power", async function() {
+    await expectRevert(
+      this.guild.connect(this.minter).outOfGuild(),
+      'Be the master of guild',
+    )
+  })
+
+  it("guild master out of guild with transfer power", async function() {
+    await this.guild.connect(this.minter).addMemberToGuild(this.alice.address)
+    await this.guild.connect(this.minter).changeGuildMaster(this.alice.address)
+    await this.guild.connect(this.minter).outOfGuild()
+    const minterGuild = await this.guild.memberToGuild(this.minter.address)
+    expect(minterGuild.toNumber()).to.equal(0)
+
+  })
+
+  it("change guild master for user not in current guild", async function() {
+    await expectRevert(
+      this.guild.connect(this.minter).changeGuildMaster(this.alice.address),
+      'Must be the same guild',
+    )
+  })
+
   it("request join private guild", async function() {
-    try{
-      await this.guild.connect(this.bob).requestJoinGuild(1)
-    } catch (error: any) {
-      expect(error.message)
-        .to.equal(`VM Exception while processing transaction: reverted with reason string 'not a public guild'`)
-    }
+    await expectRevert(
+      this.guild.connect(this.bob).requestJoinGuild(1),
+      'not a public guild',
+    )
   })
 
   it("request join public guild", async function() {
     await this.guild.connect(this.minter).changePublicStatus(true)
     await this.guild.connect(this.bob).requestJoinGuild(1)
-    const bobGuild = await this.guild.returnMemberGuild(this.bob.address)
+    const bobGuild = await this.guild.memberToGuild(this.bob.address)
     expect(bobGuild.toNumber()).to.equal(1)
   });
 
   it("create other guild while still be in certain guild", async function() {
-    try {
-      await this.guild.connect(this.minter).createGuild(
-        (await time.latest()).toNumber(),
-        this.minter.address
-      )
-    } catch(error: any) {
-      expect(error.message)
-        .to.equal(`VM Exception while processing transaction: reverted with reason string 'Must be not in certain guild'`)
-    }
+    await expectRevert(
+      this.guild.connect(this.minter).createGuild(
+        (await time.latest()).toNumber()
+      ),
+      'Must be not in certain guild',
+    )
   })
 
   it("guild master out guild", async function() {
-    try {
-      await this.guild.connect(this.minter).outOfGuild()
-    } catch (error: any) {
-      expect(error.message)
-        .to.equal(`VM Exception while processing transaction: reverted with reason string 'Be the master of guild'`)
-    }
+    await expectRevert(
+      this.guild.connect(this.minter).outOfGuild(),
+      'Be the master of guild',
+    )
   })
 
   it("kick member in other guild", async function () {
@@ -138,18 +159,35 @@ describe("Guild basic function ", function () {
     // claim Tokens
     await this.guild.connect(this.alice).claimGuildTicket(500, 0, signatureRes)
     
-    // create the second guild for signer
+    // create the second guild for alice
     await this.guild.connect(this.alice).createGuild(
-      (await time.latest()).toNumber(),
-      this.alice.address
+      (await time.latest()).toNumber()
     )
 
     // minter kick alice from other guild
-    try {
-      await this.guild.connect(this.minter).kickMember(this.alice.address);
-    } catch (error) {
-      expect(error.message)
-        .to.equal(`VM Exception while processing transaction: reverted with reason string 'Must be the same guild'`)
-    }
+    await expectRevert(
+      this.guild.connect(this.minter).kickMember(this.alice.address),
+      'Must be the same guild',
+    )
+  })
+
+  it("add member in other guild", async function() {
+    // Sign for signer create guild
+    const signatureRes = await signGuildTicketClaim(this.guild, 500, 0, this.minter, this.alice)
+    // console.log(signatureRes, 'signatureRes')
+
+    // claim Tokens
+    await this.guild.connect(this.alice).claimGuildTicket(500, 0, signatureRes)
+    
+    // create the second guild for alice
+    await this.guild.connect(this.alice).createGuild(
+      (await time.latest()).toNumber()
+    )
+
+    // minter add alice from other guild
+    await expectRevert(
+      this.guild.connect(this.minter).addMemberToGuild(this.alice.address),
+      'Must be not in certain guild'
+    )
   })
 })

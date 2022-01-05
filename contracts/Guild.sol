@@ -17,7 +17,7 @@ contract MechGuild is
     using SafeCastUpgradeable for uint256;
     using EnumerableSetUpgradeable for EnumerableSetUpgradeable.UintSet;
 
-    uint32 public OUT_GUILD_PENALTY_TIME;
+    uint256 public OUT_GUILD_PENALTY_TIME;
     uint256 public guildCount;
     uint256 public createGuildFee;
 
@@ -67,25 +67,25 @@ contract MechGuild is
         );
 
     // Modifiers
-    modifier inGuild() {
+    modifier inGuild(address _address) {
         require(
-            memberToGuild[msg.sender] != 0,
+            memberToGuild[_address] != 0,
             "Must be in certain guild"
         );
         _;
     }
 
-    modifier notInGuild() {
+    modifier notInGuild(address _address) {
         require(
-            memberToGuild[msg.sender] == 0,
+            memberToGuild[_address] == 0,
             "Must be not in certain guild"
         );
         _;
     }
 
-    modifier inTheSameGuild(address _member) {
+    modifier inTheSameGuild(address _address) {
         require(
-            memberToGuild[msg.sender] == memberToGuild[_member], 
+            memberToGuild[msg.sender] == memberToGuild[_address], 
             "Must be the same guild"
         );
         _;
@@ -175,15 +175,13 @@ contract MechGuild is
     }
 
     function createGuild(
-        uint256 _createdGuildTime,
-        address _guildMaster
-    ) public notInGuild() {
-        require(guildTicketCount[msg.sender] >= 100, "not enough guild ticket");
+        uint256 _createdGuildTime
+    ) public notInGuild(msg.sender) enoughBalance(createGuildFee) {
         guildIdToInformation[guildCount] =  GuildInformation({
                 totalSupply: 0,
                 createdGuildTime: _createdGuildTime,
                 guildHallLevel: 1,
-                guildMaster: _guildMaster,
+                guildMaster: msg.sender,
                 guildTicket: 0,
                 guildPublic: false
             });
@@ -193,24 +191,20 @@ contract MechGuild is
         guildCount++;
 
         emit AddMemberToGuild(guildInformation.length, msg.sender);
-        emit CreatedGuild(guildInformation.length, _guildMaster, _createdGuildTime);
+        emit CreatedGuild(guildInformation.length, msg.sender, _createdGuildTime);
     }
 
     function changeGuildMaster(
         address _newGuildMaster
-    ) external inGuild() inTheSameGuild(_newGuildMaster) guildMaster() {
+    ) external inTheSameGuild(_newGuildMaster) guildMaster() {
         guildIdToInformation[memberToGuild[msg.sender]].guildMaster = _newGuildMaster;
 
         emit ChangedGuildMaster(memberToGuild[msg.sender], _newGuildMaster);
     }
 
-    function returnMemberGuild(address _memberAddress) public view returns(uint256) {
-        return memberToGuild[_memberAddress];
-    }
-
     function addMemberToGuild(
         address _memberAddress
-    ) public inGuild() guildMaster() outOfPenaltyTime(_memberAddress) {
+    ) public guildMaster() outOfPenaltyTime(_memberAddress) notInGuild(_memberAddress) {
         _addMemberToGuild(memberToGuild[msg.sender], _memberAddress);
     }
 
@@ -220,19 +214,19 @@ contract MechGuild is
         _addMemberToGuild(_guildId, msg.sender);
     }
 
-    function outOfGuild() public inGuild() notGuildMaster() {
+    function outOfGuild() public inGuild(msg.sender) notGuildMaster() {
         _outOfGuild(msg.sender);
     }
 
     function kickMember(
         address _memberAddress
-    ) public inGuild() guildMaster() inTheSameGuild(_memberAddress) {
+    ) public guildMaster() inTheSameGuild(_memberAddress) {
         _outOfGuild(_memberAddress);
     }
 
     function changePublicStatus(
         bool status
-    ) public inGuild() guildMaster() {
+    ) public guildMaster() {
         guildIdToInformation[memberToGuild[msg.sender]].guildPublic = status;
     }
 
@@ -273,15 +267,7 @@ contract MechGuild is
         emit AccountGuildTicketClaimed(msg.sender, _checkpoint, _amount);
     }
 
-    function getSigNonce(address _address) public view returns(uint256) {
-        return claimGuildTicketWithSigNonces[_address];
-    }
-
-    function getGuildTicketCount(address _address) public view returns(uint256) {
-        return guildTicketCount[_address];
-    }
-
-    function donateGuild(uint256 _amount) public inGuild() enoughBalance(_amount) {
+    function donateGuild(uint256 _amount) public inGuild(msg.sender) enoughBalance(_amount) {
         guildIdToInformation[memberToGuild[msg.sender]].guildTicket += _amount;
         guildTicketCount[msg.sender] -= _amount;
     }

@@ -12,7 +12,7 @@ export async function signGuildTicketClaim(
     let nonce
 
     try {
-    nonce = (await guildContract.getSigNonce(signee.address)).toNumber()
+    nonce = (await guildContract.claimGuildTicketWithSigNonces(signee.address)).toNumber()
     } catch (e) {
         console.error('NONCE', e)
         return
