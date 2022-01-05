@@ -11,6 +11,7 @@
     "resolveJsonModule": true,
     "allowSyntheticDefaultImports": true,
     "importHelpers": true,
+    "allowJs": true
 
   },
   "include": ["./scripts", "./test", "./typechain", "index.ts"],
